@@ -51,6 +51,16 @@ Here are some screenshots of the **OLSpanel** control panel:
 
 
 ## 📥 Installation
-Run the following command to install `OLSpanel`:
+
+This version of OLSpanel is designed to be installed from your own self-hosted repository, ensuring full offline capability and independence from external sources.
+
+Run the following commands to install:
+
 ```sh
-bash <(curl -fsSL https://olspanel.com/install.sh || wget -qO- https://olspanel.com/install.sh)
+# Clone your repository (replace URL with your actual repo URL)
+git clone https://github.com/YOUR_USERNAME/owpanel.git
+cd owpanel
+
+# Run the localized installer
+bash install.sh
+```
