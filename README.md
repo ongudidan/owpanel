@@ -41,10 +41,10 @@
 Here are some screenshots of the **OLSpanel** control panel:
 
 *OpenLiteSpeed Web Server admin/whm Dashboard*
-![whm](https://github.com/osmanfc/olspanel/blob/8b2739c875281dd464954f014db5bd0f8c6e2dc3/screenshort/whm.png)  
+![whm](screenshort/whm.png)  
 
 *User Panel  Interface*
-![User panel Interface](https://github.com/osmanfc/olspanel/blob/935bdea1e1f74afbbc6e44d8e206d34593f2c788/screenshort/user.png)  
+![User panel Interface](screenshort/user.png)  
 
 
 
