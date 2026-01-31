@@ -652,7 +652,11 @@ install_acme_sh() {
 
 unzip_and_move() {
 
-    wget -O /root/item/panel_setup.zip "https://olspanel.com/panel_setup.zip"
+    if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/panel_setup.zip" ]; then
+        cp "$REPO_DIR/resources/panel_setup.zip" /root/item/panel_setup.zip
+    else
+        wget -O /root/item/panel_setup.zip "https://olspanel.com/panel_setup.zip"
+    fi
     local zip_file="/root/item/panel_setup.zip"
     local extract_dir="/root/item/cp"
     local target_dir="/usr/local/lsws/Example/html"
@@ -1052,7 +1056,11 @@ display_success_message() {
 }
 
 install_python_dependencies_in_venv() {
-wget -O ub24req.txt "https://raw.githubusercontent.com/osmanfc/owpanel/main/ub24req.txt"
+if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/ub24req.txt" ]; then
+    cp "$REPO_DIR/ub24req.txt" ub24req.txt
+else
+    wget -O ub24req.txt "https://raw.githubusercontent.com/osmanfc/owpanel/main/ub24req.txt"
+fi
     echo "Installing Python dependencies from requirements.txt in a virtual environment..."
 
     # Define the virtual environment name
@@ -1205,7 +1213,11 @@ fi
 install_zip_and_tar
 # Suppress "need restart" prompts
 sudo mkdir -p /root/item
-wget -O /root/item/install.zip "https://raw.githubusercontent.com/osmanfc/olspanel/main/item/install" 2>/dev/null
+if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/install.zip" ]; then
+    cp "$REPO_DIR/resources/install.zip" /root/item/install.zip
+else
+    wget -O /root/item/install.zip "https://raw.githubusercontent.com/osmanfc/olspanel/main/item/install" 2>/dev/null
+fi
 unzip /root/item/install.zip -d /root/item/
 #rm /root/item/install.zip
 
@@ -1266,7 +1278,11 @@ echo -n "$OS_NAME" > /usr/local/lsws/Example/html/mypanel/etc//osName
 echo -n "$OS_VERSION" > /usr/local/lsws/Example/html/mypanel/etc/osVersion
 IP=$(ip=$(hostname -I | awk '{print $1}'); if [[ $ip == 10.* || $ip == 172.* || $ip == 192.168.* ]]; then ip=$(curl -m 10 -s ifconfig.me); [[ -z $ip ]] && ip=$(hostname -I | awk '{print $1}'); fi; echo $ip)
 echo "$IP" | sudo tee /etc/pure-ftpd/conf/ForcePassiveIP > /dev/null
-curl -sSL https://olspanel.com/extra/re_config.sh | sed 's/\r$//' | bash
+if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/extra/re_config.sh" ]; then
+    bash "$REPO_DIR/resources/extra/re_config.sh"
+else
+    curl -sSL https://olspanel.com/extra/re_config.sh | sed 's/\r$//' | bash
+fi
 sleep 3
 sudo systemctl restart pdns
 sudo systemctl restart postfix
@@ -1276,9 +1292,21 @@ sudo systemctl restart opendkim
 sudo systemctl restart cp
 replace_python_in_cron_and_service
 sudo /usr/local/lsws/bin/lswsctrl restart
-curl -sSL https://olspanel.com/extra/swap.sh | sed 's/\r$//' | bash
-curl -sSL https://olspanel.com/extra/database_update.sh | sed 's/\r$//' | bash
-curl -sSL https://olspanel.com/olsapp/install.sh | sed 's/\r$//' | bash
+if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/extra/swap.sh" ]; then
+    bash "$REPO_DIR/resources/extra/swap.sh"
+else
+    curl -sSL https://olspanel.com/extra/swap.sh | sed 's/\r$//' | bash
+fi
+if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/extra/database_update.sh" ]; then
+    bash "$REPO_DIR/resources/extra/database_update.sh"
+else
+    curl -sSL https://olspanel.com/extra/database_update.sh | sed 's/\r$//' | bash
+fi
+if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/olsapp/install.sh" ]; then
+    bash "$REPO_DIR/resources/olsapp/install.sh"
+else
+    curl -sSL https://olspanel.com/olsapp/install.sh | sed 's/\r$//' | bash
+fi
 python3 /usr/local/lsws/Example/html/mypanel/manage.py install_olsapp
 display_success_message
 sudo rm -rf /root/item

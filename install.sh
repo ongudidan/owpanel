@@ -46,8 +46,21 @@ echo -e "\nYour OS is $SERVER_OS\n"
 # Update system and install required packages
 
 
-wget -O panel.sh "https://raw.githubusercontent.com/osmanfc/owpanel/main/$SERVER_OS/panel.sh"
-wget -O requirements.txt "https://raw.githubusercontent.com/osmanfc/owpanel/main/requirements.txt"
+# Set REPO_DIR to the current directory where install.sh is running
+REPO_DIR=$(pwd)
+export REPO_DIR
+
+if [ -f "$SERVER_OS/panel.sh" ]; then
+    cp "$SERVER_OS/panel.sh" panel.sh
+else
+    wget -O panel.sh "https://raw.githubusercontent.com/osmanfc/owpanel/main/$SERVER_OS/panel.sh"
+fi
+
+if [ -f "requirements.txt" ]; then
+    cp requirements.txt requirements.txt
+else
+    wget -O requirements.txt "https://raw.githubusercontent.com/osmanfc/owpanel/main/requirements.txt"
+fi
 
 # Ensure the script is executable
 chmod +x panel.sh
