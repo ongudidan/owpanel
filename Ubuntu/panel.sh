@@ -1437,6 +1437,9 @@ if [ -f /etc/profile.d/olspanel.sh ]; then
     source /etc/profile.d/olspanel.sh
 fi
 
+# Set PYTHONPATH to ensure manage.py finds the app modules
+export PYTHONPATH="/usr/local/lsws/Example/html/mypanel:$PYTHONPATH"
+
 # Try direct python call first as it is most reliable in this context
 if /root/venv/bin/python /usr/local/lsws/Example/html/mypanel/manage.py reset_admin_password "$WEB_ADMIN_PASS"; then
     echo "✅ Panel admin password updated successfully (Method: Direct)!"
@@ -1486,7 +1489,7 @@ except Exception as e:
 display_success_message
 sudo rm -rf /root/item
 sudo rm -f /root/item/mysqlPassword
-sudo rm -f /root/db_credentials_panel.txt
+# sudo rm -f /root/db_credentials_panel.txt  <-- KEEP THIS FOR USER TO CHECK
 sudo rm -f /root/webadmin
 
 

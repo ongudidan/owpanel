@@ -1302,6 +1302,11 @@ mkdir -p /etc/opendkim
 # Use the generated database password for Web Admin to ensure consistency
 WEB_ADMIN_PASS=$(get_password_from_file "/root/db_credentials_panel.txt")
 
+
+# Install OLS App first so it doesn't overwrite password later
+echo "Installing OLS App..."
+python3 /usr/local/lsws/Example/html/mypanel/manage.py install_olsapp
+
 # FINAL STEP: Reset admin password to ensure it matches the displayed credentials
 echo "Setting Admin Password..."
 
@@ -1313,6 +1318,9 @@ RESET_SUCCESS=0
 if [ -f /etc/profile.d/olspanel.sh ]; then
     source /etc/profile.d/olspanel.sh
 fi
+
+# Set PYTHONPATH to verify robust execution
+export PYTHONPATH="/usr/local/lsws/Example/html/mypanel:$PYTHONPATH"
 
 # Try direct python call first as it is most reliable in this context
 if /root/venv/bin/python /usr/local/lsws/Example/html/mypanel/manage.py reset_admin_password "$WEB_ADMIN_PASS"; then
@@ -1425,9 +1433,9 @@ if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/olsapp/install.sh" ]; then
 fi
 
 sudo rm -rf /root/item
-python3 /usr/local/lsws/Example/html/mypanel/manage.py install_olsapp
+# python3 /usr/local/lsws/Example/html/mypanel/manage.py install_olsapp  <-- Moved up
 display_success_message
 sudo rm -rf /root/item
 sudo rm -f /root/item/mysqlPassword
-sudo rm -f /root/db_credentials_panel.txt
+# sudo rm -f /root/db_credentials_panel.txt  <-- KEEP THIS FOR USER TO CHECK
 sudo rm -f /root/webadmin
