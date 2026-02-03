@@ -114,13 +114,15 @@ force_reset_mysql_root_password() {
 
     sudo systemctl stop mariadb
     
+    # Prepare init file
     local INIT_FILE="/tmp/mysql-init.sql"
-    echo "UPDATE mysql.user SET authentication_string=PASSWORD('$NEW_PASSWORD') WHERE User='root';" > "$INIT_FILE"
+    echo "FLUSH PRIVILEGES;" > "$INIT_FILE"
     echo "ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD';" >> "$INIT_FILE"
     echo "FLUSH PRIVILEGES;" >> "$INIT_FILE"
     
+    # Start mysqld safely with init file
     echo "Starting mysqld with init-file..."
-    sudo mysqld --user=mysql --init-file="$INIT_FILE" &
+    sudo mysqld --user=mysql --init-file="$INIT_FILE" --skip-networking --socket=/var/run/mysqld/mysqld.sock &
     local PID=$!
     
     echo "Waiting for password update..."
