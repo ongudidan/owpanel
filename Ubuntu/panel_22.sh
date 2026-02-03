@@ -99,28 +99,57 @@ install_mariadb() {
 
 
 
-change_mysql_root_password() {
+force_reset_mysql_root_password() {
     local NEW_PASSWORD="$1"
 
     if [ -z "$NEW_PASSWORD" ]; then
-        echo "Usage: change_mysql_root_password <new_password>"
+        echo "Usage: force_reset_mysql_root_password <new_password>"
         return 1
     fi
 
-    # Run the SQL command to change the root password
-    OUTPUT=$(mysql -u root -e "
-    ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD';
-    FLUSH PRIVILEGES;" 2>&1)
+    echo "Attempting to reset MariaDB root password..."
 
-    # Check for errors
-    if echo "$OUTPUT" | grep -qE "ERROR|Access denied|authentication failure|wrong password"; then
-        echo "Error: Failed to change the root password. Skipping to next task..."
-        return 1  # Continue to the next task in a script
+    if sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD'; FLUSH PRIVILEGES;" 2>/dev/null; then
+        echo "Password reset via sudo successful."
+        return 0
     fi
 
-    echo "MariaDB root password changed successfully."
-    return 0
+    echo "Standard reset failed. Attempting maintenance mode reset (stopping service)..."
+
+    sudo systemctl stop mariadb
+    
+    local INIT_FILE="/tmp/mysql-init.sql"
+    echo "UPDATE mysql.user SET authentication_string=PASSWORD('$NEW_PASSWORD') WHERE User='root';" > "$INIT_FILE"
+    echo "ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD';" >> "$INIT_FILE"
+    echo "FLUSH PRIVILEGES;" >> "$INIT_FILE"
+    
+    echo "Starting mysqld with init-file..."
+    sudo mysqld --user=mysql --init-file="$INIT_FILE" &
+    local PID=$!
+    
+    echo "Waiting for password update..."
+    sleep 10
+    
+    echo "Stopping temporary mysqld..."
+    sudo kill $PID 2>/dev/null || sudo pkill mysqld
+    sleep 5
+    
+    rm -f "$INIT_FILE"
+    sudo systemctl start mariadb
+    
+    if mysql -u root -p"$NEW_PASSWORD" -e "SELECT 1" &>/dev/null; then
+         echo "Maintenance mode reset successful. Password updated."
+         return 0
+    fi
+
+    echo "Critical Error: Failed to reset MariaDB root password."
+    return 1
 }
+
+# In main execution block:
+# change_mysql_root_password "$PASSWORD" -> force_reset_mysql_root_password "$PASSWORD" 
+# (Note: I can't multi-chunk widely separated lines reliably with replace_file_content easily without context, but since I am replacing the function definition, I usually replace the call in a separate step if far away. But wait, in panel_22.sh I haven't read the file fully to know where the call is. It is likely near line 250+.
+# I will just replace the function definition first.)
 
 
 create_database_and_user() {
@@ -1076,7 +1105,7 @@ install_pip
 # Install and configure MariaDB
 install_mariadb "$PASSWORD"
 
-change_mysql_root_password "$PASSWORD"
+force_reset_mysql_root_password "$PASSWORD"
 create_database_and_user "$PASSWORD" "panel" "panel"
 import_database "$PASSWORD" "panel" "/root/item/panel_db.sql"
 

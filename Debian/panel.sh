@@ -95,47 +95,51 @@ if [ "$OS_NAME" = "debian" ] && [ "$OS_VERSION" -ge 11 ]; then
 
 
 # Function to install and configure MariaDB
-install_mariadb() {
-    local MYSQL_ROOT_PASSWORD="$1"
+force_reset_mysql_root_password() {
+    local NEW_PASSWORD="$1"
 
-    if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
-        echo "Error: No password provided for root user. Skipping this task."
+    if [ -z "$NEW_PASSWORD" ]; then
+        echo "Usage: force_reset_mysql_root_password <new_password>"
         return 1
     fi
 
-    echo "Installing MariaDB server and client..."
-    sudo apt update && sudo apt install -y mariadb-server mariadb-client
+    echo "Attempting to reset MariaDB root password..."
 
-    if [ $? -ne 0 ]; then
-        echo "Failed to install MariaDB. Skipping this task."
-        return 1
+    if sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD'; FLUSH PRIVILEGES;" 2>/dev/null; then
+        echo "Password reset via sudo successful."
+        return 0
     fi
 
-    echo "Securing MariaDB installation..."
+    echo "Standard reset failed. Attempting maintenance mode reset (stopping service)..."
+
+    sudo systemctl stop mariadb
     
-    # Try to connect using sudo (unix_socket) which usually works for root on fresh installs
-    # If that fails, try with the provided password, or no password
+    local INIT_FILE="/tmp/mysql-init.sql"
+    echo "UPDATE mysql.user SET authentication_string=PASSWORD('$NEW_PASSWORD') WHERE User='root';" > "$INIT_FILE"
+    echo "ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD';" >> "$INIT_FILE"
+    echo "FLUSH PRIVILEGES;" >> "$INIT_FILE"
     
-    MYSQL_CMD="sudo mysql"
-    if ! $MYSQL_CMD -e "SELECT 1" &>/dev/null; then
-        MYSQL_CMD="mysql -u root -p$MYSQL_ROOT_PASSWORD"
-        if ! $MYSQL_CMD -e "SELECT 1" &>/dev/null; then
-             MYSQL_CMD="mysql -u root" # Try without password
-        fi
+    echo "Starting mysqld with init-file..."
+    sudo mysqld --user=mysql --init-file="$INIT_FILE" &
+    local PID=$!
+    
+    echo "Waiting for password update..."
+    sleep 10
+    
+    echo "Stopping temporary mysqld..."
+    sudo kill $PID 2>/dev/null || sudo pkill mysqld
+    sleep 5
+    
+    rm -f "$INIT_FILE"
+    sudo systemctl start mariadb
+    
+    if mysql -u root -p"$NEW_PASSWORD" -e "SELECT 1" &>/dev/null; then
+         echo "Maintenance mode reset successful. Password updated."
+         return 0
     fi
 
-    # Run security commands
-    $MYSQL_CMD -e "DELETE FROM mysql.global_priv WHERE User='';" 2>/dev/null || $MYSQL_CMD -e "DELETE FROM mysql.user WHERE User='';" 2>/dev/null
-    $MYSQL_CMD -e "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" 2>/dev/null || $MYSQL_CMD -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" 2>/dev/null
-    $MYSQL_CMD -e "DROP DATABASE IF EXISTS test;" 2>/dev/null
-    $MYSQL_CMD -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';" 2>/dev/null
-    
-    # Set root password
-    $MYSQL_CMD -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD';" 2>/dev/null || $MYSQL_CMD -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('$MYSQL_ROOT_PASSWORD');" 2>/dev/null
-    
-    $MYSQL_CMD -e "FLUSH PRIVILEGES;"
-
-    echo "MariaDB installation and root password configuration completed."
+    echo "Critical Error: Failed to reset MariaDB root password."
+    return 1
 }
 
 
@@ -1234,7 +1238,7 @@ install_pip
 # Install and configure MariaDB
 install_mariadb "$PASSWORD"
 
-change_mysql_root_password "$PASSWORD"
+force_reset_mysql_root_password "$PASSWORD"
 create_database_and_user "$PASSWORD" "panel" "panel"
 import_database "$PASSWORD" "panel" "/root/item/panel_db.sql"
 install_pip

@@ -140,34 +140,60 @@ install_mariadb() {
 
 
 
-change_mysql_root_password() {
+force_reset_mysql_root_password() {
     local NEW_PASSWORD="$1"
 
     if [ -z "$NEW_PASSWORD" ]; then
-        echo "Usage: change_mysql_root_password <new_password>"
+        echo "Usage: force_reset_mysql_root_password <new_password>"
         return 1
     fi
 
-    # Check if the current password (provided) already works
-    if mysql -u root -p"$NEW_PASSWORD" -e "SELECT 1" &>/dev/null; then
-        echo "MariaDB root password already set correctly."
+    echo "Attempting to reset MariaDB root password..."
+
+    # Try 1: Standard sudo (unix_socket) or current password if known
+    # This handles cases where we are already logged in or have sudo
+    if sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD'; FLUSH PRIVILEGES;" 2>/dev/null; then
+        echo "Password reset via sudo successful."
         return 0
     fi
 
-    # Try sudo/unix_socket
-    MYSQL_CMD="sudo mysql"
-    if ! $MYSQL_CMD -e "SELECT 1" &>/dev/null; then
-        # Try without password (if empty)
-        MYSQL_CMD="mysql -u root"
-    fi
+    echo "Standard reset failed. Attempting maintenance mode reset (stopping service)..."
 
-    # Run the SQL command to change the root password
-    if $MYSQL_CMD -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD'; FLUSH PRIVILEGES;" &>/dev/null; then
-         echo "MariaDB root password changed successfully."
+    # Try 2: Maintenance Mode (The Nuclear Option)
+    sudo systemctl stop mariadb
+    
+    # Prepare init file
+    local INIT_FILE="/tmp/mysql-init.sql"
+    echo "UPDATE mysql.user SET authentication_string=PASSWORD('$NEW_PASSWORD') WHERE User='root';" > "$INIT_FILE"
+    echo "ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD';" >> "$INIT_FILE"
+    echo "FLUSH PRIVILEGES;" >> "$INIT_FILE"
+    
+    # Start mysqld safely with init file
+    # We run it in background, wait for it to process, then kill it.
+    echo "Starting mysqld with init-file..."
+    sudo mysqld --user=mysql --init-file="$INIT_FILE" &
+    local PID=$!
+    
+    echo "Waiting for password update..."
+    sleep 10
+    
+    # Kill the temporary process
+    echo "Stopping temporary mysqld..."
+    sudo kill $PID 2>/dev/null || sudo pkill mysqld
+    sleep 5
+    
+    # Clean up
+    rm -f "$INIT_FILE"
+    
+    # Restart verify
+    sudo systemctl start mariadb
+    
+    if mysql -u root -p"$NEW_PASSWORD" -e "SELECT 1" &>/dev/null; then
+         echo "Maintenance mode reset successful. Password updated."
          return 0
     fi
-    
-    echo "Error: Failed to change the root password. Could not authenticate as root."
+
+    echo "Critical Error: Failed to reset MariaDB root password."
     return 1
 }
 
@@ -1270,7 +1296,7 @@ install_pip
 # Install and configure MariaDB
 install_mariadb "$PASSWORD"
 
-change_mysql_root_password "$PASSWORD"
+force_reset_mysql_root_password "$PASSWORD"
 create_database_and_user "$PASSWORD" "panel" "panel"
 import_database "$PASSWORD" "panel" "/root/item/panel_db.sql"
 
