@@ -93,6 +93,7 @@ install_pip() {
 
 
 # Function to install and configure MariaDB
+install_mariadb() {
     local MYSQL_ROOT_PASSWORD="$1"
 
     if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
