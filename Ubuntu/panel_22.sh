@@ -1036,19 +1036,28 @@ display_success_message() {
     NC='\033[0m'	
     # Get the IP address
     IP=$(hostname -I | awk '{print $1}')
+    # Check for private IP ranges (10.x, 172.16-31.x, 192.168.x) and fetch public IP if found
+    if echo "$IP" | grep -qE "^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)"; then
+        PUBLIC_IP=$(curl -m 10 -s ifconfig.me)
+        if [ -n "$PUBLIC_IP" ]; then
+            IP="$PUBLIC_IP"
+        fi
+    fi
     
     # Get the port from the file
     PORT=$(cat /root/item/port.txt)
-	DB_PASSWORDx=$(get_password_from_file "/root/db_credentials_panel.txt")
-    
-    # Define the DB password (this can be dynamically set if needed)
-   
+    # Get the web admin password
+    if [ -f "/root/webadmin_credentials.txt" ]; then
+        WEB_PASS=$(cat /root/webadmin_credentials.txt)
+    else
+        WEB_PASS="Check /root/webadmin_credentials.txt or reset manually"
+    fi
     
     # Print success message in green
     echo "${GREEN}You have successfully installed the webhost panel!"
     echo "Admin URL is: https://${IP}:${PORT}"
     echo "Username: admin"
-    echo "Password: ${DB_PASSWORDx}${NC}"
+    echo "Password: ${WEB_PASS}${NC}"
 }
 
 
@@ -1153,7 +1162,26 @@ fix_dovecot_log_permissions
 copy_conf_for_ols
 cp /etc/resolv.conf /var/spool/postfix/etc/resolv.conf
 cp /root/item/move/conf/olspanel.sh /etc/profile.d
-python3 /usr/local/lsws/Example/html/mypanel/manage.py reset_admin_password "$(get_password_from_file "/root/db_credentials_panel.txt")"
+
+# Generate a specific password for the web admin
+WEB_ADMIN_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
+echo "$WEB_ADMIN_PASS" > /root/webadmin_credentials.txt
+chmod 600 /root/webadmin_credentials.txt
+
+# FINAL STEP: Reset admin password to ensure it matches the displayed credentials
+echo "Setting Admin Password..."
+# Source olspanel command if not already available
+if [ -f /etc/profile.d/olspanel.sh ]; then
+    source /etc/profile.d/olspanel.sh
+fi
+
+# Use the official command as requested
+if olspanel reset_admin_password "$WEB_ADMIN_PASS"; then
+    echo "✅ Panel admin password updated successfully!"
+else
+    echo "⚠️ 'olspanel' command failed. Trying fallback..."
+    python3 /usr/local/lsws/Example/html/mypanel/manage.py reset_admin_password "$WEB_ADMIN_PASS"
+fi
 add_backup_cronjobs
 sudo apt-get install libwww-perl -y
 display_success_message
