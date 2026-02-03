@@ -1411,7 +1411,15 @@ fi
 
 # FINAL STEP: Reset admin password to ensure it matches the displayed credentials
 echo "Setting Admin Password..."
+# Source olspanel command if not already available
+if [ -f /etc/profile.d/olspanel.sh ]; then
+    source /etc/profile.d/olspanel.sh
+fi
+
+# Use the official command as requested
+olspanel reset_admin_password "$(get_password_from_file "/root/db_credentials_panel.txt")" || \
 /root/venv/bin/python /usr/local/lsws/Example/html/mypanel/manage.py reset_admin_password "$(get_password_from_file "/root/db_credentials_panel.txt")"
+
 
 display_success_message
 sudo rm -rf /root/item
