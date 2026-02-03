@@ -1145,6 +1145,8 @@ display_success_message() {
         fi
     fi
     
+    # Get the port from the file
+    PORT=$(cat /root/item/port.txt)
     # Get the web admin password directly from the source of truth
     WEB_PASS=$(cat /root/final_display_pass.txt)
     

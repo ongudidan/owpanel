@@ -69,4 +69,15 @@ chmod +x *.sh resources/**/*.sh 2>/dev/null
 # Run the localized installer
 sudo bash install.sh
 ```
-# owpanel
+
+## 🔐 Troubleshooting & Access
+
+### Manual Password Reset
+If you are unable to log in with the displayed password, you can reset the admin password directly via SSH:
+
+```bash
+# Run this command as root
+olspanel reset_admin_password my_new_password
+```
+
+Replace `my_new_password` with your desired secure password.
