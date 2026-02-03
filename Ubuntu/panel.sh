@@ -1146,18 +1146,7 @@ display_success_message() {
     fi
     
     # Get the web admin password directly from the source of truth
-    echo "DEBUG: Reading port from /root/item/port.txt"
-    PORT=$(cat /root/item/port.txt)
-    echo "DEBUG: Reading password from /root/final_display_pass.txt"
-    if [ -f "/root/final_display_pass.txt" ]; then
-        echo "DEBUG: File exists."
-        cat /root/final_display_pass.txt | od -c # Hex dump debug
-        WEB_PASS=$(cat /root/final_display_pass.txt)
-        echo "DEBUG: Read value: $WEB_PASS"
-    else
-        echo "DEBUG: File /root/final_display_pass.txt NOT FOUND!"
-        WEB_PASS="FILE_NOT_FOUND"
-    fi
+    WEB_PASS=$(cat /root/final_display_pass.txt)
     
     # Print success message in green
     echo "${GREEN}You have successfully installed the webhost panel!"
@@ -1460,12 +1449,34 @@ else
     RESET_SUCCESS=0
 fi
 
-if [ $RESET_SUCCESS -eq 1 ]; then
-    echo "$WEB_ADMIN_PASS" > /root/final_display_pass.txt
-else
-    # If reset failed, the password remains the DB password
-    echo "$WEB_ADMIN_PASS" > /root/final_display_pass.txt
-fi
+
+# Verify the password actually works in Django
+echo "Verifying Admin Authentication..."
+VERIFY_SCRIPT="
+import os
+import django
+from django.conf import settings
+from django.contrib.auth import authenticate, get_user_model
+
+try:
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mypanel.settings')
+    django.setup()
+    
+    User = get_user_model()
+    if not User.objects.filter(username='admin').exists():
+        print('VERIFY_ERROR: User admin does not exist!')
+    else:
+        user = authenticate(username='admin', password='$WEB_ADMIN_PASS')
+        if user is not None:
+            print('VERIFY_SUCCESS: Password works for Django Admin.')
+        else:
+            print('VERIFY_FAILURE: Authentication refused.')
+            print(f'Debug info: User is active={User.objects.get(username=\"admin\").is_active}')
+except Exception as e:
+    print(f'VERIFY_EXCEPTION: {e}')
+"
+
+/root/venv/bin/python -c "$VERIFY_SCRIPT"
 
 display_success_message
 sudo rm -rf /root/item
