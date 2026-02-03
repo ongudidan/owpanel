@@ -61,6 +61,11 @@ Run the following commands to install:
 git clone https://github.com/ongudidan/owpanel.git
 cd owpanel
 
+# Fix line endings (CRLF issues) and permissions
+sudo apt install dos2unix -y
+find . -type f -name "*.sh" -exec dos2unix {} \;
+chmod +x *.sh resources/**/*.sh 2>/dev/null
+
 # Run the localized installer
 sudo bash install.sh
 ```

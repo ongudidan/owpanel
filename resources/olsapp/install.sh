@@ -41,7 +41,7 @@ add_backup_cronjobs() {
 }
 
 run_repo() {
-    wget -O - https://repo.litespeed.sh | sudo bash
+    # wget -O - https://repo.litespeed.sh | sudo bash
 
     OUTPUT=$(cat /etc/*release)
 
@@ -113,8 +113,20 @@ install_olsapp() {
     DEST_DIR="/usr/local/lsws/Example/html/olsapp"
     ZIP_FILE="/usr/local/lsws/Example/html/olsapp.zip"
 
-    echo "Downloading olsapp..."
-    wget -O "$ZIP_FILE" "$ZIP_URL" --no-cache --no-cookies
+    
+    
+    # Check for local file in various locations
+    # Prioritizing the one in the current directory acting as 'olsapp.zip' (which I just downloaded)
+    if [ -f "olsapp.zip" ]; then
+        echo "Found olsapp.zip in current directory. Using it."
+        cp "olsapp.zip" "$ZIP_FILE"
+    elif [ -f "../olsapp.zip" ]; then
+        echo "Found olsapp.zip in parent directory."
+        cp "../olsapp.zip" "$ZIP_FILE"
+    else
+        echo "Local olsapp.zip not found. Proceeding to download..."
+        wget -O "$ZIP_FILE" "$ZIP_URL" --no-cache --no-cookies
+    fi
 
     echo "Extracting olsapp..."
     mkdir -p "$DEST_DIR"
