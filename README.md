@@ -58,10 +58,10 @@ Run the following commands to install:
 
 ```sh
 # Clone your repository (replace URL with your actual repo URL)
-git clone https://github.com/YOUR_USERNAME/owpanel.git
+git clone https://github.com/ongudidan/owpanel.git
 cd owpanel
 
 # Run the localized installer
-bash install.sh
+sudo bash install.sh
 ```
 # owpanel
