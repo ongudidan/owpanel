@@ -80,9 +80,8 @@ install_pip() {
     echo "Installing mysqlclient..."
     pip install --no-binary :all: mysqlclient
     
-    
-    deactivate
-  
+    # deactivate is a function and might not be available, or we might be in a subshell.
+    # It's safe to just exit the function/scope without deactivating as we sourced in this scope.
     
     echo "Python and pip setup completed!"
 }
