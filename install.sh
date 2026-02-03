@@ -66,4 +66,4 @@ fi
 chmod +x panel.sh
 sed -i 's/\r$//' panel.sh
 
-sh panel.sh
+bash panel.sh
