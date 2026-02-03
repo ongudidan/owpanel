@@ -1467,7 +1467,7 @@ import sys
 import django
 
 # Add the project directory to the python path
-sys.path.append('/usr/local/lsws/Example/html/mypanel')
+sys.path.append('/usr/local/lsws/Example/html')
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
