@@ -1331,7 +1331,7 @@ fix_dovecot_log_permissions
 copy_conf_for_ols
 cp /etc/resolv.conf /var/spool/postfix/etc/resolv.conf
 cp /root/item/move/conf/olspanel.sh /etc/profile.d
-/root/venv/bin/python /usr/local/lsws/Example/html/mypanel/manage.py reset_admin_password "$(get_password_from_file "/root/db_credentials_panel.txt")"
+
 add_backup_cronjobs
 sudo apt-get install libwww-perl -y
 sudo systemctl stop systemd-resolved >/dev/null 2>&1
@@ -1400,7 +1400,19 @@ if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/olsapp/install.sh" ]; then
 # else
 #    curl -sSL https://olspanel.com/olsapp/install.sh | sed 's/\r$//' | bash
 fi
+# ensure default time.zone exists before install_olsapp
+if [ ! -f "/usr/local/lsws/Example/html/mypanel/etc/time.zone" ]; then
+    mkdir -p /usr/local/lsws/Example/html/mypanel/etc
+    echo "UTC" > /usr/local/lsws/Example/html/mypanel/etc/time.zone
+    chmod 644 /usr/local/lsws/Example/html/mypanel/etc/time.zone
+fi
+
 /root/venv/bin/python /usr/local/lsws/Example/html/mypanel/manage.py install_olsapp
+
+# FINAL STEP: Reset admin password to ensure it matches the displayed credentials
+echo "Setting Admin Password..."
+/root/venv/bin/python /usr/local/lsws/Example/html/mypanel/manage.py reset_admin_password "$(get_password_from_file "/root/db_credentials_panel.txt")"
+
 display_success_message
 sudo rm -rf /root/item
 sudo rm -f /root/item/mysqlPassword
