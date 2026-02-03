@@ -1175,10 +1175,8 @@ copy_conf_for_ols
 cp /etc/resolv.conf /var/spool/postfix/etc/resolv.conf
 cp /root/item/move/conf/olspanel.sh /etc/profile.d
 
-# Generate a specific password for the web admin
-WEB_ADMIN_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
-echo "$WEB_ADMIN_PASS" > /root/webadmin_credentials.txt
-chmod 600 /root/webadmin_credentials.txt
+# Use the generated database password for Web Admin to ensure consistency
+WEB_ADMIN_PASS=$(get_password_from_file "/root/db_credentials_panel.txt")
 
 # FINAL STEP: Reset admin password to ensure it matches the displayed credentials
 echo "Setting Admin Password..."
@@ -1208,7 +1206,7 @@ if [ $RESET_SUCCESS -eq 1 ]; then
     echo "$WEB_ADMIN_PASS" > /root/final_display_pass.txt
 else
     # If reset failed, the password remains the DB password
-    get_password_from_file "/root/db_credentials_panel.txt" > /root/final_display_pass.txt
+    echo "$WEB_ADMIN_PASS" > /root/final_display_pass.txt
 fi
 
 add_backup_cronjobs
@@ -1236,6 +1234,6 @@ sudo systemctl restart opendkim
 sudo systemctl restart cp
 sudo /usr/local/lsws/bin/lswsctrl restart
 sudo rm -rf /root/item
-sudo rm -f /root/webadmin_credentials.txt
+
 
 

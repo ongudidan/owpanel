@@ -1430,10 +1430,8 @@ fi
 
 /root/venv/bin/python /usr/local/lsws/Example/html/mypanel/manage.py install_olsapp
 
-# Generate a specific password for the web admin
-WEB_ADMIN_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
-echo "$WEB_ADMIN_PASS" > /root/webadmin_credentials.txt
-chmod 600 /root/webadmin_credentials.txt
+# Use the generated database password for Web Admin to ensure consistency
+WEB_ADMIN_PASS=$(get_password_from_file "/root/db_credentials_panel.txt")
 
 # FINAL STEP: Reset admin password to ensure it matches the displayed credentials
 echo "Setting Admin Password..."
@@ -1463,7 +1461,7 @@ if [ $RESET_SUCCESS -eq 1 ]; then
     echo "$WEB_ADMIN_PASS" > /root/final_display_pass.txt
 else
     # If reset failed, the password remains the DB password
-    get_password_from_file "/root/db_credentials_panel.txt" > /root/final_display_pass.txt
+    echo "$WEB_ADMIN_PASS" > /root/final_display_pass.txt
 fi
 
 display_success_message
@@ -1471,6 +1469,5 @@ sudo rm -rf /root/item
 sudo rm -f /root/item/mysqlPassword
 sudo rm -f /root/db_credentials_panel.txt
 sudo rm -f /root/webadmin
-sudo rm -f /root/webadmin_credentials.txt
 
 
