@@ -1036,9 +1036,19 @@ display_success_message() {
     NC='\033[0m'	
     # Get the IP address
     IP=$(hostname -I | awk '{print $1}')
-    # Check for private IP ranges (10.x, 172.16-31.x, 192.168.x) and fetch public IP if found
+    # Check for private IP ranges and try multiple services for public IP
     if echo "$IP" | grep -qE "^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)"; then
-        PUBLIC_IP=$(curl -m 10 -s ifconfig.me)
+        # Try ifconfig.me
+        PUBLIC_IP=$(curl -m 5 -s ifconfig.me)
+        if [ -z "$PUBLIC_IP" ]; then
+            # Try icanhazip.com
+            PUBLIC_IP=$(curl -m 5 -s ipv4.icanhazip.com)
+        fi
+        if [ -z "$PUBLIC_IP" ]; then
+            # Try ipecho.net
+            PUBLIC_IP=$(curl -m 5 -s ipecho.net/plain)
+        fi
+        
         if [ -n "$PUBLIC_IP" ]; then
             IP="$PUBLIC_IP"
         fi
@@ -1047,10 +1057,12 @@ display_success_message() {
     # Get the port from the file
     PORT=$(cat /root/item/port.txt)
     # Get the web admin password
-    if [ -f "/root/webadmin_credentials.txt" ]; then
+    if [ -f "/root/final_display_pass.txt" ]; then
+        WEB_PASS=$(cat /root/final_display_pass.txt)
+    elif [ -f "/root/webadmin_credentials.txt" ]; then
         WEB_PASS=$(cat /root/webadmin_credentials.txt)
     else
-        WEB_PASS="Check /root/webadmin_credentials.txt or reset manually"
+        WEB_PASS="Check /root/db_credentials_panel.txt"
     fi
     
     # Print success message in green
@@ -1170,18 +1182,35 @@ chmod 600 /root/webadmin_credentials.txt
 
 # FINAL STEP: Reset admin password to ensure it matches the displayed credentials
 echo "Setting Admin Password..."
+
+# Wait a moment for services to settle
+sleep 5
+
+RESET_SUCCESS=0
 # Source olspanel command if not already available
 if [ -f /etc/profile.d/olspanel.sh ]; then
     source /etc/profile.d/olspanel.sh
 fi
 
-# Use the official command as requested
-if olspanel reset_admin_password "$WEB_ADMIN_PASS"; then
-    echo "✅ Panel admin password updated successfully!"
+# Try direct python call first as it is most reliable in this context
+if python3 /usr/local/lsws/Example/html/mypanel/manage.py reset_admin_password "$WEB_ADMIN_PASS"; then
+    echo "✅ Panel admin password updated successfully (Method: Direct)!"
+    RESET_SUCCESS=1
+elif olspanel reset_admin_password "$WEB_ADMIN_PASS"; then
+    echo "✅ Panel admin password updated successfully (Method: olspanel)!"
+    RESET_SUCCESS=1
 else
-    echo "⚠️ 'olspanel' command failed. Trying fallback..."
-    python3 /usr/local/lsws/Example/html/mypanel/manage.py reset_admin_password "$WEB_ADMIN_PASS"
+    echo "❌ Password reset failed. Reverting to database credentials."
+    RESET_SUCCESS=0
 fi
+
+if [ $RESET_SUCCESS -eq 1 ]; then
+    echo "$WEB_ADMIN_PASS" > /root/final_display_pass.txt
+else
+    # If reset failed, the password remains the DB password
+    get_password_from_file "/root/db_credentials_panel.txt" > /root/final_display_pass.txt
+fi
+
 add_backup_cronjobs
 sudo apt-get install libwww-perl -y
 display_success_message
@@ -1207,4 +1236,6 @@ sudo systemctl restart opendkim
 sudo systemctl restart cp
 sudo /usr/local/lsws/bin/lswsctrl restart
 sudo rm -rf /root/item
+sudo rm -f /root/webadmin_credentials.txt
+
 
