@@ -1302,6 +1302,12 @@ mkdir -p /etc/opendkim
 # Use the generated database password for Web Admin to ensure consistency
 WEB_ADMIN_PASS=$(get_password_from_file "/root/db_credentials_panel.txt")
 
+# Robust fallback: If DB credential file was empty or missing, generate a new one
+if [ -z "$WEB_ADMIN_PASS" ]; then
+    echo "Warning: DB credentials file empty. Generating new admin password."
+    WEB_ADMIN_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
+fi
+
 
 # Install OLS App first so it doesn't overwrite password later
 echo "Installing OLS App..."
