@@ -1196,6 +1196,40 @@ else
     RESET_SUCCESS=0
 fi
 
+
+# Verify the password actually works in Django
+echo "Verifying Admin Authentication..."
+VERIFY_SCRIPT="
+import os
+import sys
+import django
+
+# Add the project directory to the python path
+sys.path.append('/usr/local/lsws/Example/html/mypanel')
+
+from django.conf import settings
+from django.contrib.auth import authenticate, get_user_model
+
+try:
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mypanel.settings')
+    django.setup()
+    
+    User = get_user_model()
+    if not User.objects.filter(username='admin').exists():
+        print('VERIFY_ERROR: User admin does not exist!')
+    else:
+        user = authenticate(username='admin', password='$WEB_ADMIN_PASS')
+        if user is not None:
+            print('VERIFY_SUCCESS: Password works for Django Admin.')
+        else:
+            print('VERIFY_FAILURE: Authentication refused.')
+            print(f'Debug info: User is active={User.objects.get(username=\"admin\").is_active}')
+except Exception as e:
+    print(f'VERIFY_EXCEPTION: {e}')
+"
+
+/root/venv/bin/python -c "$VERIFY_SCRIPT"
+
 if [ $RESET_SUCCESS -eq 1 ]; then
     echo "$WEB_ADMIN_PASS" > /root/final_display_pass.txt
 else
