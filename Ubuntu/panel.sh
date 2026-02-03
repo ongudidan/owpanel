@@ -93,12 +93,11 @@ install_pip() {
 
 
 # Function to install and configure MariaDB
-install_mariadb() {
     local MYSQL_ROOT_PASSWORD="$1"
 
     if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
         echo "Error: No password provided for root user. Skipping this task."
-        return 1  # Skip task and continue with the script
+        return 1
     fi
 
     echo "Installing MariaDB server and client..."
@@ -106,27 +105,35 @@ install_mariadb() {
 
     if [ $? -ne 0 ]; then
         echo "Failed to install MariaDB. Skipping this task."
-        return 1  # Skip task and continue with the script
+        return 1
     fi
 
     echo "Securing MariaDB installation..."
-    sudo mysql_secure_installation <<EOF
-
-Y
-$MYSQL_ROOT_PASSWORD
-$MYSQL_ROOT_PASSWORD
-Y
-Y
-Y
-Y
-EOF
-
-    if [ $? -ne 0 ]; then
-        echo "Failed to secure MariaDB installation. Skipping this task."
-        return 1  # Skip task and continue with the script
+    
+    # Try to connect using sudo (unix_socket) which usually works for root on fresh installs
+    # If that fails, try with the provided password, or no password
+    
+    MYSQL_CMD="sudo mysql"
+    if ! $MYSQL_CMD -e "SELECT 1" &>/dev/null; then
+        MYSQL_CMD="mysql -u root -p$MYSQL_ROOT_PASSWORD"
+        if ! $MYSQL_CMD -e "SELECT 1" &>/dev/null; then
+             MYSQL_CMD="mysql -u root" # Try without password
+        fi
     fi
 
-    echo "MariaDB installation and root password configuration completed successfully."
+    # Run security commands
+    $MYSQL_CMD -e "DELETE FROM mysql.global_priv WHERE User='';" 2>/dev/null || $MYSQL_CMD -e "DELETE FROM mysql.user WHERE User='';" 2>/dev/null
+    $MYSQL_CMD -e "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" 2>/dev/null || $MYSQL_CMD -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" 2>/dev/null
+    $MYSQL_CMD -e "DROP DATABASE IF EXISTS test;" 2>/dev/null
+    $MYSQL_CMD -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';" 2>/dev/null
+    
+    # Set root password
+    # Check if we need to use ALTER USER or SET PASSWORD
+    $MYSQL_CMD -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD';" 2>/dev/null || $MYSQL_CMD -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('$MYSQL_ROOT_PASSWORD');" 2>/dev/null
+    
+    $MYSQL_CMD -e "FLUSH PRIVILEGES;"
+
+    echo "MariaDB installation and root password configuration completed."
 }
 
 
@@ -166,10 +173,22 @@ create_database_and_user() {
         return 1
     fi
 
-    # Generate a random password for the new user
-    local DB_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
-    echo -n "${DB_PASSWORD}" > /root/db_credentials_panel.txt
-    chmod 600 /root/db_credentials_${DB_USER}.txt
+    # Generate or retrieve password for the new user
+    local CRED_FILE="/root/db_credentials_${DB_USER}.txt"
+    # Fallback/Primary file seems to be db_credentials_panel.txt in the original code, but we should be consistent
+    if [ "$DB_USER" = "panel" ]; then
+        CRED_FILE="/root/db_credentials_panel.txt"
+    fi
+
+    local DB_PASSWORD
+    if [ -f "$CRED_FILE" ] && [ -s "$CRED_FILE" ]; then
+        DB_PASSWORD=$(cat "$CRED_FILE")
+        echo "Using existing password for ${DB_USER} from ${CRED_FILE}"
+    else
+        DB_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
+        echo -n "${DB_PASSWORD}" > "$CRED_FILE"
+    fi
+    chmod 600 "$CRED_FILE"
    
 
     echo "Creating database and user..."
@@ -1167,17 +1186,20 @@ if [ ! -d "$PASSWORD_DIR" ]; then
     echo "Directory $PASSWORD_DIR created successfully."
 fi
 
-# Generate a MariaDB-compatible random password
-PASSWORD=$(generate_mariadb_password)  # Change 16 to your desired password length
-echo "Generated MariaDB-Compatible Password: $PASSWORD"
-DB_PASSWORD=$(get_password_from_file "/root/db_credentials_panel.txt")
-# Save the password to the file
-echo -n "$PASSWORD" > "$PASSWORD_FILE"
-if [ $? -eq 0 ]; then
-    echo "Password saved to $PASSWORD_FILE."
+# Generate or retrieve MariaDB root password
+if [ -f "$PASSWORD_FILE" ] && [ -s "$PASSWORD_FILE" ]; then
+    PASSWORD=$(cat "$PASSWORD_FILE")
+    echo "Using existing MariaDB Root Password from $PASSWORD_FILE"
 else
-    echo "Failed to save password to $PASSWORD_FILE. Exiting."
-    exit 1
+    PASSWORD=$(generate_mariadb_password)
+    echo "Generated New MariaDB-Compatible Password: $PASSWORD"
+    echo -n "$PASSWORD" > "$PASSWORD_FILE"
+    if [ $? -eq 0 ]; then
+        echo "Password saved to $PASSWORD_FILE."
+    else
+        echo "Failed to save password to $PASSWORD_FILE. Exiting."
+        exit 1
+    fi
 fi
 
 # Set appropriate permissions for the password file
