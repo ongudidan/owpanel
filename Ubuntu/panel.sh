@@ -1318,14 +1318,23 @@ sudo touch /etc/opendkim/TrustedHosts.table
 echo -n "$OS_NAME" > /usr/local/lsws/Example/html/mypanel/etc/osName
 echo -n "$OS_VERSION" > /usr/local/lsws/Example/html/mypanel/etc/osVersion
 # Determine public IP
-IP=$(hostname -I | awk '{print $1}')
-if echo "$IP" | grep -qE "^(10\.|172\.|192\.168\.)"; then
-    IP=$(curl -m 10 -s ifconfig.me)
-    if [ -z "$IP" ]; then
-        IP=$(hostname -I | awk '{print $1}')
+    IP=$(hostname -I | awk '{print $1}')
+    # Simple check for private IP ranges
+    if echo "$IP" | grep -qE "^(10\.|172\.|192\.168\.)"; then
+        IP=$(curl -m 10 -s ifconfig.me)
+        if [ -z "$IP" ]; then
+            IP=$(hostname -I | awk '{print $1}')
+        fi
     fi
-fi
-echo "$IP" | sudo tee /etc/pure-ftpd/conf/ForcePassiveIP > /dev/null
+    echo "$IP" | sudo tee /etc/pure-ftpd/conf/ForcePassiveIP > /dev/null
+
+    # Pre-flight check for manage.py requirements
+    if [ ! -f "/usr/local/lsws/Example/html/mypanel/etc/time.zone" ]; then
+         echo "Warning: /usr/local/lsws/Example/html/mypanel/etc/time.zone missing. Creating default."
+         mkdir -p /usr/local/lsws/Example/html/mypanel/etc
+         echo "UTC" > /usr/local/lsws/Example/html/mypanel/etc/time.zone
+         chmod 644 /usr/local/lsws/Example/html/mypanel/etc/time.zone
+    fi
 if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/extra/re_config.sh" ]; then
     bash "$REPO_DIR/resources/extra/re_config.sh"
 # else
