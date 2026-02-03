@@ -147,19 +147,60 @@ change_mysql_root_password() {
         return 1
     fi
 
-    # Run the SQL command to change the root password
-    OUTPUT=$(mysql -u root -e "
-    ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD';
-    FLUSH PRIVILEGES;" 2>&1)
-
-    # Check for errors
-    if echo "$OUTPUT" | grep -qE "ERROR|Access denied|authentication failure|wrong password"; then
-        echo "Error: Failed to change the root password. Skipping to next task..."
-        return 1  # Continue to the next task in a script
+    # Check if the current password (provided) already works
+    if mysql -u root -p"$NEW_PASSWORD" -e "SELECT 1" &>/dev/null; then
+        echo "MariaDB root password already set correctly."
+        return 0
     fi
 
-    echo "MariaDB root password changed successfully."
-    return 0
+    # Try sudo/unix_socket
+    MYSQL_CMD="sudo mysql"
+    if ! $MYSQL_CMD -e "SELECT 1" &>/dev/null; then
+        # Try without password (if empty)
+        MYSQL_CMD="mysql -u root"
+    fi
+
+    # Run the SQL command to change the root password
+    if $MYSQL_CMD -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$NEW_PASSWORD'; FLUSH PRIVILEGES;" &>/dev/null; then
+         echo "MariaDB root password changed successfully."
+         return 0
+    fi
+    
+    echo "Error: Failed to change the root password. Could not authenticate as root."
+    return 1
+}
+
+install_openlitespeed() {
+    local NEW_ADMIN_USERNAME="admin"
+    local NEW_ADMIN_PASSWORD="$1"
+
+    echo "Installing OpenLiteSpeed Web Server on Ubuntu..."
+    
+    # Check for local openlitespeed.sh
+    if [ -f "/root/item/openlitespeed.sh" ]; then
+         echo "Using local openlitespeed.sh info located at /root/item/openlitespeed.sh"
+         cp "/root/item/openlitespeed.sh" openlitespeed.sh
+    elif [ -f "$(pwd)/resources/openlitespeed.sh" ]; then
+         echo "Using local openlitespeed.sh from resources"
+         cp "$(pwd)/resources/openlitespeed.sh" openlitespeed.sh
+    else
+         wget -O openlitespeed.sh https://repo.litespeed.sh
+    fi
+    
+    sudo bash openlitespeed.sh
+    sudo apt install openlitespeed -y
+    
+    if command -v lswsctrl &> /dev/null; then
+        echo "OpenLiteSpeed installed successfully."
+        echo "Starting OpenLiteSpeed service..."
+        sudo /usr/local/lsws/bin/lswsctrl start
+        sudo systemctl enable "$SYSTEMD_SERVICE"
+        echo "Checking OpenLiteSpeed version..."
+        sudo /usr/local/lsws/bin/lshttpd -v
+    else
+        echo "OpenLiteSpeed installation failed. Please check for errors."
+        return 1
+    fi
 }
 
 
@@ -1277,7 +1318,14 @@ sudo touch /etc/opendkim/signing.table
 sudo touch /etc/opendkim/TrustedHosts.table
 echo -n "$OS_NAME" > /usr/local/lsws/Example/html/mypanel/etc/osName
 echo -n "$OS_VERSION" > /usr/local/lsws/Example/html/mypanel/etc/osVersion
-IP=$(ip=$(hostname -I | awk '{print $1}'); if [[ $ip == 10.* || $ip == 172.* || $ip == 192.168.* ]]; then ip=$(curl -m 10 -s ifconfig.me); [[ -z $ip ]] && ip=$(hostname -I | awk '{print $1}'); fi; echo $ip)
+# Determine public IP
+IP=$(hostname -I | awk '{print $1}')
+if echo "$IP" | grep -qE "^(10\.|172\.|192\.168\.)"; then
+    IP=$(curl -m 10 -s ifconfig.me)
+    if [ -z "$IP" ]; then
+        IP=$(hostname -I | awk '{print $1}')
+    fi
+fi
 echo "$IP" | sudo tee /etc/pure-ftpd/conf/ForcePassiveIP > /dev/null
 if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/resources/extra/re_config.sh" ]; then
     bash "$REPO_DIR/resources/extra/re_config.sh"

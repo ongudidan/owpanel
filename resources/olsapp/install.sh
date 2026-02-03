@@ -113,13 +113,14 @@ install_olsapp() {
     DEST_DIR="/usr/local/lsws/Example/html/olsapp"
     ZIP_FILE="/usr/local/lsws/Example/html/olsapp.zip"
 
-    
+    # Get script directory to find resources reliably
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
     
     # Check for local file in various locations
-    # Prioritizing the one in the current directory acting as 'olsapp.zip' (which I just downloaded)
-    if [ -f "olsapp.zip" ]; then
-        echo "Found olsapp.zip in current directory. Using it."
-        cp "olsapp.zip" "$ZIP_FILE"
+    # Prioritizing the one in the script directory
+    if [ -f "$SCRIPT_DIR/olsapp.zip" ]; then
+        echo "Found olsapp.zip in script directory ($SCRIPT_DIR). Using it."
+        cp "$SCRIPT_DIR/olsapp.zip" "$ZIP_FILE"
     elif [ -f "../olsapp.zip" ]; then
         echo "Found olsapp.zip in parent directory."
         cp "../olsapp.zip" "$ZIP_FILE"
