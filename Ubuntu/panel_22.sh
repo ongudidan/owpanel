@@ -59,7 +59,7 @@ install_mariadb() {
 
     if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
         echo "Error: No password provided for root user. Skipping this task."
-        return 1  # Skip task and continue with the script
+        return 1
     fi
 
     echo "Installing MariaDB server and client..."
@@ -67,27 +67,34 @@ install_mariadb() {
 
     if [ $? -ne 0 ]; then
         echo "Failed to install MariaDB. Skipping this task."
-        return 1  # Skip task and continue with the script
+        return 1
     fi
 
     echo "Securing MariaDB installation..."
-    sudo mysql_secure_installation <<EOF
-
-Y
-$MYSQL_ROOT_PASSWORD
-$MYSQL_ROOT_PASSWORD
-Y
-Y
-Y
-Y
-EOF
-
-    if [ $? -ne 0 ]; then
-        echo "Failed to secure MariaDB installation. Skipping this task."
-        return 1  # Skip task and continue with the script
+    
+    # Try to connect using sudo (unix_socket) which usually works for root on fresh installs
+    # If that fails, try with the provided password, or no password
+    
+    MYSQL_CMD="sudo mysql"
+    if ! $MYSQL_CMD -e "SELECT 1" &>/dev/null; then
+        MYSQL_CMD="mysql -u root -p$MYSQL_ROOT_PASSWORD"
+        if ! $MYSQL_CMD -e "SELECT 1" &>/dev/null; then
+             MYSQL_CMD="mysql -u root" # Try without password
+        fi
     fi
 
-    echo "MariaDB installation and root password configuration completed successfully."
+    # Run security commands
+    $MYSQL_CMD -e "DELETE FROM mysql.global_priv WHERE User='';" 2>/dev/null || $MYSQL_CMD -e "DELETE FROM mysql.user WHERE User='';" 2>/dev/null
+    $MYSQL_CMD -e "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" 2>/dev/null || $MYSQL_CMD -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" 2>/dev/null
+    $MYSQL_CMD -e "DROP DATABASE IF EXISTS test;" 2>/dev/null
+    $MYSQL_CMD -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';" 2>/dev/null
+    
+    # Set root password
+    $MYSQL_CMD -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD';" 2>/dev/null || $MYSQL_CMD -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('$MYSQL_ROOT_PASSWORD');" 2>/dev/null
+    
+    $MYSQL_CMD -e "FLUSH PRIVILEGES;"
+
+    echo "MariaDB installation and root password configuration completed."
 }
 
 

@@ -52,7 +52,9 @@ disable_kernel_message() {
     echo "Kernel upgrade message disabled."
 }
 
-# Function to generate a MariaDB-compatible random password
+# Function to generate a random password
+# DEBUG: This is the updated Ubuntu/panel.sh
+echo "DEBUG: Running patched Ubuntu/panel.sh"
 generate_mariadb_password() {
     # Generate a random password with 16 characters
     DB_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
