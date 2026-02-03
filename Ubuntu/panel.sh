@@ -1438,10 +1438,11 @@ echo "Setting Admin Password..."
 sleep 5
 
 RESET_SUCCESS=0
-# Source olspanel command if not already available
-if [ -f /etc/profile.d/olspanel.sh ]; then
-    source /etc/profile.d/olspanel.sh
-fi
+
+# Skipped sourcing /etc/profile.d/olspanel.sh to prevent variable pollution and banner clutter
+# if [ -f /etc/profile.d/olspanel.sh ]; then
+#     source /etc/profile.d/olspanel.sh
+# fi
 
 # Set PYTHONPATH to ensure manage.py finds the app modules
 export PYTHONPATH="/usr/local/lsws/Example/html/mypanel:$PYTHONPATH"
