@@ -64,3 +64,4 @@ cd owpanel
 # Run the localized installer
 bash install.sh
 ```
+# owpanel
