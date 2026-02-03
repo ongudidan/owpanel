@@ -58,29 +58,82 @@ fi
 
 
 
-wget -O /etc/profile.d/olspanel.sh "https://olspanel.com/extra/olspanel.sh?$(date +%s)"
-curl -sSL https://olspanel.com/extra/ufw_int.sh?$(date +%s) | sed 's/\r$//' | bash
-curl -sSL https://olspanel.com/extra/install_php_cgi.sh?$(date +%s) | sed 's/\r$//' | bash
 
-wget -O /usr/local/bin/install_cp_plugin "https://olspanel.com/extra/install_cp_plugin?$(date +%s)"
-sed -i 's/\r$//' /usr/local/bin/install_cp_plugin
-chmod +x /usr/local/bin/install_cp_plugin
+# Localize dependencies: Define local resource paths
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PLUGIN_DIR="$SCRIPT_DIR/../plugins"
+EXTRA_DIR="$SCRIPT_DIR"
 
-wget -O /usr/local/bin/olspanel "https://olspanel.com/extra/olspanel?$(date +%s)"
-sed -i 's/\r$//' /usr/local/bin/olspanel
-chmod +x /usr/local/bin/olspanel
+# Helper function to install plugin from local zip
+install_local_plugin() {
+    local plugin_name=$1
+    local zip_name="$plugin_name.zip"
+    local local_zip="$PLUGIN_DIR/$zip_name"
+    local target_dir="$PROJECT_DIR/3rdparty/$plugin_name"
 
-
-
-        rainloop="$PROJECT_DIR/3rdparty/rainloop/index.php"
-        roundcube="$PROJECT_DIR/3rdparty/roundcube/index.php"
-
-        if [ ! -f "$roundcube" ]; then
-            install_cp_plugin https://olspanel.com/plugin/roundcube.zip
+    if [ -f "$local_zip" ]; then
+        echo "Installing $plugin_name from local source: $local_zip..."
+        mkdir -p "$target_dir"
+        # Assuming plugin zips might contain a top-level folder or not, standardizing to extract INTO target or parent?
+        # Usually web apps extract into 'roundcube/' etc.
+        # But safest is unzip -d
+        # If the zip has the folder inside, we might end up with target/plugin/index.php.
+        # Let's inspect typical behavior: install_cp_plugin usually unzips to directory.
+        # For safety, let's unzip to a temp dir and move.
+        TEMP_EXTRACT="/tmp/plugin_extract_$plugin_name"
+        rm -rf "$TEMP_EXTRACT"
+        mkdir -p "$TEMP_EXTRACT"
+        unzip -q -o "$local_zip" -d "$TEMP_EXTRACT"
+        
+        # Check content
+        if [ -d "$TEMP_EXTRACT/$plugin_name" ]; then
+             # Zip had folder inside
+             cp -r "$TEMP_EXTRACT/$plugin_name/"* "$target_dir/"
+        else
+             # Zip was loose files
+             cp -r "$TEMP_EXTRACT/"* "$target_dir/"
         fi
+        rm -rf "$TEMP_EXTRACT"
+        
+        # Permissions
+        chown -R nobody:nobody "$target_dir"
+        echo "✅ $plugin_name installed successfully."
+    else
+        echo "⚠️  Local plugin archive not found: $local_zip"
+        echo "Please place $zip_name in owpanel/resources/plugins/ to install it."
+    fi
+}
 
-        if [ ! -f "$rainloop" ]; then
-            install_cp_plugin https://olspanel.com/plugin/rainloop.zip
-        fi
 
-install_cp_plugin https://olspanel.com/plugin/phpmyadmin.zip
+# Localize scripts (olspanel CLI, etc.)
+if [ -f "$EXTRA_DIR/olspanel.sh" ]; then
+    cp "$EXTRA_DIR/olspanel.sh" /etc/profile.d/olspanel.sh
+fi
+
+if [ -f "$EXTRA_DIR/ufw_int.sh" ]; then
+    bash "$EXTRA_DIR/ufw_int.sh"
+fi
+
+if [ -f "$EXTRA_DIR/install_php_cgi.sh" ]; then
+    bash "$EXTRA_DIR/install_php_cgi.sh"
+fi
+
+# olspanel CLI binary
+if [ -f "$EXTRA_DIR/olspanel" ]; then
+    cp "$EXTRA_DIR/olspanel" /usr/local/bin/olspanel
+    chmod +x /usr/local/bin/olspanel
+fi
+
+# Install Plugins Locally
+rainloop="$PROJECT_DIR/3rdparty/rainloop/index.php"
+roundcube="$PROJECT_DIR/3rdparty/roundcube/index.php"
+
+if [ ! -f "$roundcube" ]; then
+    install_local_plugin "roundcube"
+fi
+
+if [ ! -f "$rainloop" ]; then
+    install_local_plugin "rainloop"
+fi
+
+install_local_plugin "phpmyadmin"
