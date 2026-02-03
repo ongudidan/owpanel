@@ -1145,10 +1145,19 @@ display_success_message() {
         fi
     fi
     
-    # Get the port from the file
-    PORT=$(cat /root/item/port.txt)
     # Get the web admin password directly from the source of truth
-    WEB_PASS=$(cat /root/final_display_pass.txt)
+    echo "DEBUG: Reading port from /root/item/port.txt"
+    PORT=$(cat /root/item/port.txt)
+    echo "DEBUG: Reading password from /root/final_display_pass.txt"
+    if [ -f "/root/final_display_pass.txt" ]; then
+        echo "DEBUG: File exists."
+        cat /root/final_display_pass.txt | od -c # Hex dump debug
+        WEB_PASS=$(cat /root/final_display_pass.txt)
+        echo "DEBUG: Read value: $WEB_PASS"
+    else
+        echo "DEBUG: File /root/final_display_pass.txt NOT FOUND!"
+        WEB_PASS="FILE_NOT_FOUND"
+    fi
     
     # Print success message in green
     echo "${GREEN}You have successfully installed the webhost panel!"
