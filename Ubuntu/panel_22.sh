@@ -1066,10 +1066,10 @@ display_success_message() {
     fi
     
     # Print success message in green
-    echo "${GREEN}You have successfully installed the webhost panel!"
-    echo "Admin URL is: https://${IP}:${PORT}"
-    echo "Username: admin"
-    echo "Password: ${WEB_PASS}"
+    echo -e "${GREEN}You have successfully installed the webhost panel!"
+    echo -e "Admin URL is: https://${IP}:${PORT}"
+    echo -e "Username: admin"
+    echo -e "Password: ${WEB_PASS}${NC}"
 }
 
 
