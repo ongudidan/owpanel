@@ -1057,7 +1057,13 @@ display_success_message() {
     # Get the port from the file
     PORT=$(cat /root/item/port.txt)
     # Get the web admin password directly from the source of truth
-    WEB_PASS=$(cat /root/final_display_pass.txt)
+    if [ -n "$WEB_ADMIN_PASS" ]; then
+        WEB_PASS="$WEB_ADMIN_PASS"
+    elif [ -f /root/final_display_pass.txt ]; then
+        WEB_PASS=$(cat /root/final_display_pass.txt)
+    else
+        WEB_PASS="[Password not found]"
+    fi
     
     # Print success message in green
     echo "${GREEN}You have successfully installed the webhost panel!"
