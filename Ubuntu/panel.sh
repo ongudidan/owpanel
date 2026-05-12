@@ -790,7 +790,7 @@ unzip_and_move() {
 
     # Move all extracted files to the target directory
     echo "Moving contents of '$extract_dir' to '$target_dir'..."
-    rm -rf "$target_dir/mypanel" "$target_dir/phpmyadmin" "$target_dir/webmail"
+    rm -rf "$target_dir/mypanel" "$target_dir/phpmyadmin" "$target_dir/webmail" "$target_dir/default"
     mv "$extract_dir"/* "$target_dir"
 
     echo "Unzipping and moving completed successfully."
@@ -1203,10 +1203,8 @@ display_success_message() {
 }
 
 install_python_dependencies_in_venv() {
-if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/ub24req.txt" ]; then
+if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/ub24req.txt" ] && [ "$REPO_DIR/ub24req.txt" != "$(pwd)/ub24req.txt" ]; then
     cp "$REPO_DIR/ub24req.txt" ub24req.txt
-# else
-#    wget -O ub24req.txt "https://raw.githubusercontent.com/osmanfc/owpanel/main/ub24req.txt"
 fi
     echo "Installing Python dependencies from requirements.txt in a virtual environment..."
 
