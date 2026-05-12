@@ -843,6 +843,7 @@ unzip_and_move() {
 
     # Move all extracted files to the target directory
     echo "Moving contents of '$extract_dir' to '$target_dir'..."
+    rm -rf "$target_dir/mypanel" "$target_dir/phpmyadmin" "$target_dir/webmail"
     mv "$extract_dir"/* "$target_dir"
 
     echo "Unzipping and moving completed successfully."
