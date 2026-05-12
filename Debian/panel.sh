@@ -45,10 +45,16 @@ wait_for_apt_lock() {
     done
 }
 disable_kernel_message() {
-    sudo sed -i 's/^#\?\(\$nrconf{kernelhints} = \).*/\1 0;/' /etc/needrestart/needrestart.conf
-    sudo sed -i 's/^#\?\(\$nrconf{restart} = \).*/\1"a";/' /etc/needrestart/needrestart.conf
-    sudo systemctl restart needrestart
-    echo "Kernel upgrade message disabled."
+    if [ -f /etc/needrestart/needrestart.conf ]; then
+        sudo sed -i 's/^#\?\(\$nrconf{kernelhints} = \).*/\1 0;/' /etc/needrestart/needrestart.conf
+        sudo sed -i 's/^#\?\(\$nrconf{restart} = \).*/\1"a";/' /etc/needrestart/needrestart.conf
+        if systemctl is-active --quiet needrestart.service || systemctl is-enabled --quiet needrestart.service 2>/dev/null; then
+            sudo systemctl restart needrestart.service || true
+        fi
+        echo "Kernel upgrade message disabled."
+    else
+        echo "needrestart.conf not found, skipping kernel message disable."
+    fi
 }
 
 # Function to generate a MariaDB-compatible random password
@@ -468,12 +474,16 @@ generate_pureftpd_ssl_certificate() {
 }
 # Function to suppress "need restart" prompts
 suppress_restart_prompts() {
-    echo "Suppressing 'need restart' prompts..."
-    # Disable the "need restart" notifications
-    sudo sed -i 's/#\$nrconf{restart} = '"'"'i'"'"';/\$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
-    # Automatically restart services without prompting
-    sudo sed -i 's/#$nrconf{restart} = '"'"'i'"'"';/$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
-    echo "Restart prompts suppressed."
+    if [ -f /etc/needrestart/needrestart.conf ]; then
+        echo "Suppressing 'need restart' prompts..."
+        # Disable the "need restart" notifications
+        sudo sed -i 's/#\$nrconf{restart} = '"'"'i'"'"';/\$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
+        # Automatically restart services without prompting
+        sudo sed -i 's/#$nrconf{restart} = '"'"'i'"'"';/$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
+        echo "Restart prompts suppressed."
+    else
+        echo "needrestart.conf not found, skipping restart prompts suppression."
+    fi
 }
 
 # Function to check if a reboot is required and reboot automatically
@@ -500,6 +510,8 @@ install_openlitespeed() {
         echo "OpenLiteSpeed installed successfully."
         echo "Starting OpenLiteSpeed service..."
         sudo /usr/local/lsws/bin/lswsctrl start
+        sudo mkdir -p /tmp/lshttpd
+        sudo chmod 777 /tmp/lshttpd
         sudo systemctl enable "$SYSTEMD_SERVICE"
         echo "Checking OpenLiteSpeed version..."
         sudo /usr/local/lsws/bin/lshttpd -v
@@ -923,7 +935,31 @@ install_all_lsphp_versions() {
         echo "Installing PHP $version..."
         sudo apt-get install -y lsphp"$version" lsphp"$version"-common lsphp"$version"-mysql
 	sudo apt-get install -y lsphp"$version"-curl
-        sudo apt-get install -y lsphp"$version"-json
+        sudo apt-get install -y lsphp"$version"-json || true
+
+        # Convert version to dotted format (e.g., 74 → 7.4)
+        php_version=$(echo "$version" | awk '{print substr($0,1,1) "." substr($0,2,1)}')
+
+        # Install basic extensions with fallback to system packages
+        for ext in mbstring xml gd zip intl; do
+            if ! sudo apt-get install -y lsphp"$version"-"$ext"; then
+                echo "lsphp$version-$ext not found, trying system package php$php_version-$ext"
+                sudo apt-get install -y php"$php_version"-"$ext"
+                # Link system extension to lsphp
+                if [ -d "/usr/local/lsws/lsphp$version/lib/php/" ]; then
+                    API_DIR=$(ls /usr/local/lsws/lsphp$version/lib/php/ | grep '20' | head -n 1)
+                    if [ -n "$API_DIR" ] && [ -f "/usr/lib/php/$API_DIR/$ext.so" ]; then
+                        sudo ln -sf "/usr/lib/php/$API_DIR/$ext.so" "/usr/local/lsws/lsphp$version/lib/php/$API_DIR/$ext.so"
+                        # Create ini and enable
+                        MOD_DIR="/usr/local/lsws/lsphp$version/etc/php/$php_version/mods-available"
+                        if [ -d "$MOD_DIR" ]; then
+                             echo "extension=$ext.so" | sudo tee "$MOD_DIR/$ext.ini" > /dev/null
+                             [ -x "/usr/local/lsws/lsphp$version/bin/phpenmod" ] && sudo /usr/local/lsws/lsphp$version/bin/phpenmod "$ext"
+                        fi
+                    fi
+                fi
+            fi
+        done
 
         # Check if installation was successful
         if [ -x "/usr/local/lsws/lsphp$version/bin/php" ]; then

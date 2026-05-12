@@ -62,10 +62,16 @@ wait_for_apt_lock() {
     done
 }
 disable_kernel_message() {
-    sudo sed -i 's/^#\?\(\$nrconf{kernelhints} = \).*/\1 0;/' /etc/needrestart/needrestart.conf
-    sudo sed -i 's/^#\?\(\$nrconf{restart} = \).*/\1"a";/' /etc/needrestart/needrestart.conf
-    sudo systemctl restart needrestart
-    echo "Kernel upgrade message disabled."
+    if [ -f /etc/needrestart/needrestart.conf ]; then
+        sudo sed -i 's/^#\?\(\$nrconf{kernelhints} = \).*/\1 0;/' /etc/needrestart/needrestart.conf
+        sudo sed -i 's/^#\?\(\$nrconf{restart} = \).*/\1"a";/' /etc/needrestart/needrestart.conf
+        if systemctl is-active --quiet needrestart.service || systemctl is-enabled --quiet needrestart.service 2>/dev/null; then
+            sudo systemctl restart needrestart.service || true
+        fi
+        echo "Kernel upgrade message disabled."
+    else
+        echo "needrestart.conf not found, skipping kernel message disable."
+    fi
 }
 
 # Function to generate a MariaDB-compatible random password
@@ -551,12 +557,16 @@ generate_pureftpd_ssl_certificate() {
 }
 # Function to suppress "need restart" prompts
 suppress_restart_prompts() {
-    echo "Suppressing 'need restart' prompts..."
-    # Disable the "need restart" notifications
-    sudo sed -i 's/#\$nrconf{restart} = '"'"'i'"'"';/\$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
-    # Automatically restart services without prompting
-    sudo sed -i 's/#$nrconf{restart} = '"'"'i'"'"';/$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
-    echo "Restart prompts suppressed."
+    if [ -f /etc/needrestart/needrestart.conf ]; then
+        echo "Suppressing 'need restart' prompts..."
+        # Disable the "need restart" notifications
+        sudo sed -i 's/#\$nrconf{restart} = '"'"'i'"'"';/\$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
+        # Automatically restart services without prompting
+        sudo sed -i 's/#$nrconf{restart} = '"'"'i'"'"';/$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
+        echo "Restart prompts suppressed."
+    else
+        echo "needrestart.conf not found, skipping restart prompts suppression."
+    fi
 }
 
 # Function to check if a reboot is required and reboot automatically
@@ -632,6 +642,8 @@ install_openlitespeed() {
         echo "OpenLiteSpeed installed successfully."
         echo "Starting OpenLiteSpeed service..."
         sudo /usr/local/lsws/bin/lswsctrl start
+        sudo mkdir -p /tmp/lshttpd
+        sudo chmod 777 /tmp/lshttpd
         sudo systemctl enable "$SYSTEMD_SERVICE"
         echo "Checking OpenLiteSpeed version..."
         sudo /usr/local/lsws/bin/lshttpd -v
