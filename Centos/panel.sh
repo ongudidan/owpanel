@@ -1444,6 +1444,7 @@ copy_files_and_replace_password "/root/item/move/html" "/usr/local/lsws/Example/
 
 install_acme_sh
 /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+/root/.acme.sh/acme.sh --register-account -m "admin@$(hostname)" --server letsencrypt
 /root/.acme.sh/acme.sh --upgrade --auto-upgrade
 
 remove_files_in_html_folder
