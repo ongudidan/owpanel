@@ -46,16 +46,10 @@ wait_for_apt_lock() {
     done
 }
 disable_kernel_message() {
-    if [ -f /etc/needrestart/needrestart.conf ]; then
-        sudo sed -i 's/^#\?\(\$nrconf{kernelhints} = \).*/\1 0;/' /etc/needrestart/needrestart.conf
-        sudo sed -i 's/^#\?\(\$nrconf{restart} = \).*/\1"a";/' /etc/needrestart/needrestart.conf
-        if systemctl is-active --quiet needrestart.service || systemctl is-enabled --quiet needrestart.service 2>/dev/null; then
-            sudo systemctl restart needrestart.service || true
-        fi
-        echo "Kernel upgrade message disabled."
-    else
-        echo "needrestart.conf not found, skipping kernel message disable."
-    fi
+    sudo sed -i 's/^#\?\(\$nrconf{kernelhints} = \).*/\1 0;/' /etc/needrestart/needrestart.conf
+    sudo sed -i 's/^#\?\(\$nrconf{restart} = \).*/\1"a";/' /etc/needrestart/needrestart.conf
+    sudo systemctl restart needrestart
+    echo "Kernel upgrade message disabled."
 }
 
 # Function to generate a random password
@@ -230,8 +224,6 @@ install_openlitespeed() {
         echo "OpenLiteSpeed installed successfully."
         echo "Starting OpenLiteSpeed service..."
         sudo /usr/local/lsws/bin/lswsctrl start
-        sudo mkdir -p /tmp/lshttpd
-        sudo chmod 777 /tmp/lshttpd
         sudo systemctl enable "$SYSTEMD_SERVICE"
         echo "Checking OpenLiteSpeed version..."
         sudo /usr/local/lsws/bin/lshttpd -v
@@ -275,10 +267,8 @@ create_database_and_user() {
 
     # Execute the SQL commands to create the database and user
     mysql -u root -p"${ROOT_PASSWORD}" <<EOF
-DROP DATABASE IF EXISTS \`${DB_NAME}\`;
-CREATE DATABASE \`${DB_NAME}\`;
-DROP USER IF EXISTS '${DB_USER}'@'localhost';
-CREATE USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
+CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
 GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 EOF
@@ -554,16 +544,12 @@ generate_pureftpd_ssl_certificate() {
 }
 # Function to suppress "need restart" prompts
 suppress_restart_prompts() {
-    if [ -f /etc/needrestart/needrestart.conf ]; then
-        echo "Suppressing 'need restart' prompts..."
-        # Disable the "need restart" notifications
-        sudo sed -i 's/#\$nrconf{restart} = '"'"'i'"'"';/\$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
-        # Automatically restart services without prompting
-        sudo sed -i 's/#$nrconf{restart} = '"'"'i'"'"';/$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
-        echo "Restart prompts suppressed."
-    else
-        echo "needrestart.conf not found, skipping restart prompts suppression."
-    fi
+    echo "Suppressing 'need restart' prompts..."
+    # Disable the "need restart" notifications
+    sudo sed -i 's/#\$nrconf{restart} = '"'"'i'"'"';/\$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
+    # Automatically restart services without prompting
+    sudo sed -i 's/#$nrconf{restart} = '"'"'i'"'"';/$nrconf{restart} = '"'"'a'"'"';/' /etc/needrestart/needrestart.conf
+    echo "Restart prompts suppressed."
 }
 
 # Function to check if a reboot is required and reboot automatically
@@ -790,7 +776,6 @@ unzip_and_move() {
 
     # Move all extracted files to the target directory
     echo "Moving contents of '$extract_dir' to '$target_dir'..."
-    rm -rf "$target_dir/mypanel" "$target_dir/phpmyadmin" "$target_dir/webmail" "$target_dir/default"
     mv "$extract_dir"/* "$target_dir"
 
     echo "Unzipping and moving completed successfully."
@@ -1011,31 +996,7 @@ install_all_lsphp_versions() {
         echo "Installing PHP $version..."
         sudo apt-get install -y lsphp"$version" lsphp"$version"-common lsphp"$version"-mysql
         sudo apt-get install -y lsphp"$version"-curl
-        sudo apt-get install -y lsphp"$version"-json || true
-        
-        # Convert version to dotted format (e.g., 74 → 7.4)
-        php_version=$(echo "$version" | awk '{print substr($0,1,1) "." substr($0,2,1)}')
-
-        # Install basic extensions with fallback to system packages
-        for ext in mbstring xml gd zip intl; do
-            if ! sudo apt-get install -y lsphp"$version"-"$ext"; then
-                echo "lsphp$version-$ext not found, trying system package php$php_version-$ext"
-                sudo apt-get install -y php"$php_version"-"$ext"
-                # Link system extension to lsphp
-                if [ -d "/usr/local/lsws/lsphp$version/lib/php/" ]; then
-                    API_DIR=$(ls /usr/local/lsws/lsphp$version/lib/php/ | grep '20' | head -n 1)
-                    if [ -n "$API_DIR" ] && [ -f "/usr/lib/php/$API_DIR/$ext.so" ]; then
-                        sudo ln -sf "/usr/lib/php/$API_DIR/$ext.so" "/usr/local/lsws/lsphp$version/lib/php/$API_DIR/$ext.so"
-                        # Create ini and enable
-                        MOD_DIR="/usr/local/lsws/lsphp$version/etc/php/$php_version/mods-available"
-                        if [ -d "$MOD_DIR" ]; then
-                             echo "extension=$ext.so" | sudo tee "$MOD_DIR/$ext.ini" > /dev/null
-                             [ -x "/usr/local/lsws/lsphp$version/bin/phpenmod" ] && sudo /usr/local/lsws/lsphp$version/bin/phpenmod "$ext"
-                        fi
-                    fi
-                fi
-            fi
-        done
+	sudo apt-get install -y lsphp"$version"-json
         # Check if installation was successful
         if [ -x "/usr/local/lsws/lsphp$version/bin/php" ]; then
             echo "PHP $version installed successfully!"
@@ -1203,8 +1164,10 @@ display_success_message() {
 }
 
 install_python_dependencies_in_venv() {
-if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/ub24req.txt" ] && [ "$REPO_DIR/ub24req.txt" != "$(pwd)/ub24req.txt" ]; then
+if [ -n "$REPO_DIR" ] && [ -f "$REPO_DIR/ub24req.txt" ]; then
     cp "$REPO_DIR/ub24req.txt" ub24req.txt
+# else
+#    wget -O ub24req.txt "https://raw.githubusercontent.com/osmanfc/owpanel/main/ub24req.txt"
 fi
     echo "Installing Python dependencies from requirements.txt in a virtual environment..."
 

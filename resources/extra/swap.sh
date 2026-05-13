@@ -129,11 +129,11 @@ rainloop="$PROJECT_DIR/3rdparty/rainloop/index.php"
 roundcube="$PROJECT_DIR/3rdparty/roundcube/index.php"
 
 if [ ! -f "$roundcube" ]; then
-#    install_local_plugin "roundcube"
+    install_local_plugin "roundcube"
 fi
 
 if [ ! -f "$rainloop" ]; then
-#    install_local_plugin "rainloop"
+    install_local_plugin "rainloop"
 fi
 
-# install_local_plugin "phpmyadmin"
+install_local_plugin "phpmyadmin"

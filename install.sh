@@ -50,24 +50,17 @@ echo -e "\nYour OS is $SERVER_OS\n"
 REPO_DIR=$(pwd)
 export REPO_DIR
 
-# Clean up existing installation for a fresh start
-if [ -d "/usr/local/lsws/Example/html/mypanel" ] || [ -f "/root/db_credentials_panel.txt" ]; then
-    echo "Existing OLSPanel installation detected. Performing a deep clean..."
-    sudo systemctl stop olspanel >/dev/null 2>&1
-    sudo rm -rf /usr/local/lsws/Example/html/mypanel
-    sudo rm -f /root/db_credentials_panel.txt
-    sudo rm -f /root/mysqlPassword
-    sudo rm -rf /root/item
-    echo "Cleanup complete. Starting fresh installation."
-fi
-
 if [ -f "$SERVER_OS/panel.sh" ]; then
     cp "$SERVER_OS/panel.sh" panel.sh
 # else
 #    wget -O panel.sh "https://raw.githubusercontent.com/osmanfc/owpanel/main/$SERVER_OS/panel.sh"
 fi
 
-
+if [ -f "requirements.txt" ]; then
+    cp requirements.txt requirements.txt
+# else
+#    wget -O requirements.txt "https://raw.githubusercontent.com/osmanfc/owpanel/main/requirements.txt"
+fi
 
 # Ensure the script is executable
 chmod +x panel.sh
